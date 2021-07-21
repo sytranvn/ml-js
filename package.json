@@ -2,13 +2,25 @@
   "name": "ml-js",
   "version": "0.1.0",
   "private": true,
+  "author": {
+    "name": "Sy Tran",
+    "email": "sytrancsvn@gmail.com",
+    "url": "https://sytranvn.dev"
+  },
   "dependencies": {
+    "@material-ui/core": "^4.12.2",
+    "@material-ui/styles": "^4.11.4",
     "@testing-library/jest-dom": "^5.11.4",
     "@testing-library/react": "^11.1.0",
     "@testing-library/user-event": "^12.1.10",
+    "fast-csv": "^4.3.6",
+    "math": "0.0.3",
+    "mathjs": "^9.4.4",
+    "pngjs": "^6.0.0",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
     "react-scripts": "4.0.3",
+    "styled-components": "^5.3.0",
     "web-vitals": "^1.0.1"
   },
   "scripts": {
