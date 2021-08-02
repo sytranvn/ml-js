@@ -1,8 +1,7 @@
-import { Button } from "@material-ui/core";
 import { useState, useRef, useEffect } from "react";
-import { PNG } from "pngjs";
 import { makeStyles } from '@material-ui/core/styles';
 
+import { featureNormalize } from "../lib/ml";
 import Canvas from "./Canvas";
 
 function draw({
@@ -11,7 +10,7 @@ function draw({
   pos,
   isDown = false,
   color = 'black',
-  width = 15
+  width = 10
 }) {
   if (isDown) {
     context.beginPath();
@@ -26,23 +25,40 @@ function draw({
 }
 
 const useStyles = makeStyles(theme => ({
-  scaledCanvas: {
-    position: 'absolute',
-    visibility: 'hidden'
+  root: {
+    position: 'relative',
   },
-  clear: {
+  mainCanvas: {
+    zIndex: 10,
+    maxWidth: '100%',
+    background: 'black',
+    touchAction: 'none'
+  },
+  debugger: {
     position: 'absolute',
     top: 0,
-    right: 0,
+    left: 0,
+    visibility: 'hidden',
+    color: 'white',
+    fontSize: '0.3em',
+    zIndex: 1,
+    maxWidth: '20em'
   },
-  btns: {
-    '& > *': {
-      margin: theme.spacing(1),
-    },
+  debugOn: {
+    visibility: 'visible'
+  },
+  debugCanvas: {
+    border: '1px solid gray',
+    background: 'gray'
+  },
+  inpVec: {
+    wordWrap: 'break-word',
+    whiteSpace: 'pre-wrap',
+    fontSize: '0.35rem'
   }
 }));
 
-export default function Drawing({ onClear, onChange, onAction }) {
+export default function Drawing({ onChange, debug }) {
   const classes = useStyles();
   const [prev, setPrev] = useState({});
   const [isDown, setIsDown] = useState(false);
@@ -51,12 +67,12 @@ export default function Drawing({ onClear, onChange, onAction }) {
   const scaledCanvasRef = useRef(null);
   const [context, setContext] = useState(null);
   const [scaledContext, setScaledContext] = useState(null);
-  const debug = false;
 
   useEffect(() => {
     const { current: canvas } = canvasRef;
     if (canvas !== null) {
-      setContext(canvas.getContext('2d'));
+      const ctx = canvas.getContext('2d');
+      setContext(ctx);
     }
     const { current: scaledCanvas } = scaledCanvasRef;
     if (scaledCanvas !== null) {
@@ -73,66 +89,71 @@ export default function Drawing({ onClear, onChange, onAction }) {
     img.src = urlData;
   }, [urlData, scaledContext])
 
+  useEffect(() => {
+    if (!isDown && scaledContext) {
+      const { data } = scaledContext.getImageData(0, 0, scaledContext.canvas.width, scaledContext.canvas.height);
+
+      const grayPixels = [];
+      for (let i = 0; i < data.length; i+=4) {
+        const rgb = (data[i] + data[i + 1] + data[i + 2]) / 3 / 225;
+        grayPixels.push(rgb);
+      }
+
+      onChange(featureNormalize(grayPixels));
+    }
+  }, [isDown, onChange, scaledContext, debug])
+
   const mouseDown = (e) => {
     const { current: canvas } = canvasRef;
     setIsDown(true);
-    const pos = { x: e.clientX - canvas.offsetLeft, y: e.clientY - canvas.offsetTop }
-    draw({ context, prev, pos, isDown: false });
+    const pos = { x: e.clientX - canvas.parentElement.offsetLeft, y: e.clientY - canvas.parentElement.offsetTop }
+    draw({ context, prev, pos, isDown: false, color: 'white' });
     setPrev(pos);
   }
 
   const mouseMove = (e) => {
     const { current: canvas } = canvasRef;
     if (isDown) {
-      const pos = { x: e.clientX - canvas.offsetLeft, y: e.clientY - canvas.offsetTop }
-      draw({ context, prev, pos, isDown });
+      const pos = { x: e.clientX - canvas.parentElement.offsetLeft, y: e.clientY - canvas.parentElement.offsetTop }
+      draw({ context, prev, pos, isDown, color: 'white' });
       setUrlData(canvas.toDataURL());
       setPrev(pos);
     }
   }
 
+  const touchStart = (e) => {
+    const { current: canvas } = canvasRef;
+    const touches = e.changedTouches;
+    // e.preventDefault();
+    if (touches.length === 1) {
+      const [touch, ] = touches;
+      const pos = { x: touch.clientX - canvas.parentElement.offsetLeft, y: touch.clientY - canvas.parentElement.offsetTop }
+      draw({ context, prev, pos, isDown, color: 'white' });
 
-  const mouseUp = (e) => {
-    setIsDown(false);
-  }
-
-  const mouseLeave = (e) => {
-    setIsDown(false);
-  }
-
-  const clearCanvas = () => {
-    context.setTransform(1, 0, 0, 1, 0, 0);
-    context.clearRect(0, 0, context.canvas.width, context.canvas.height);
-    scaledContext.setTransform(1, 0, 0, 1, 0, 0);
-    scaledContext.clearRect(0, 0, scaledContext.canvas.width, scaledContext.canvas.height);
-    onClear();
-  }
-
-  useEffect(() => {
-    if (!isDown) {
-      const png = new PNG({ width: 20, height: 20,  colorType: 0 })
-      const { current: canvas } = scaledCanvasRef;
-
-      canvas.toBlob(blob => {
-        blob.arrayBuffer().then(buff => {
-          png.parse(buff,(err, data) => {
-            const greyBits = [];
-            for (let i = 0; i < 20 * 20; i++) {
-              greyBits.push(data.data[i * 4 + 3] / 255);
-            }
-            onChange(greyBits);
-          })
-        })
-      })
+      setIsDown(true);
+      setPrev(pos);
     }
-  }, [isDown, onChange])
+  }
 
-  const doAction = () => {
-    onAction()
+  const touchMove = (e) => {
+    const { current: canvas } = canvasRef;
+    const touches = e.changedTouches;
+    // e.preventDefault();
+    if (isDown && touches.length === 1) {
+      const [touch, ] = touches;
+      const pos = { x: touch.clientX - canvas.parentElement.offsetLeft, y: touch.clientY - canvas.parentElement.offsetTop }
+      draw({ context, prev, pos, isDown, color: 'white' });
+      setUrlData(canvas.toDataURL());
+      setPrev(pos);
+    }
+  }
+
+  const stopDraw = () => {
+    setIsDown(false);
   }
 
   return (
-    <div>
+    <div className={classes.root}>
       <Canvas
         width="400px"
         height="400px"
@@ -140,15 +161,32 @@ export default function Drawing({ onClear, onChange, onAction }) {
         ref={canvasRef}
         className={classes.mainCanvas}
         onMouseDown={mouseDown}
-        onMouseUp={mouseUp}
         onMouseMove={mouseMove}
-        onMouseLeave={mouseLeave}
+        onMouseLeave={stopDraw}
+        onMouseUp={stopDraw}
+        onTouchStart={touchStart}
+        onTouchMove={touchMove}
+        onTouchCancel={stopDraw}
+        onTouchEnd={stopDraw}
       >
       </Canvas>
-      <Canvas ref={scaledCanvasRef} width="20px" height="20px" id="scaled" className={!debug && classes.scaledCanvas} />
-      <div className={classes.btns}>
-        <Button onClick={doAction} variant="contained" color="primary">Check</Button>
-        <Button onClick={clearCanvas} variant="contained" color="secondary">Clear</Button>
+      <div className={`${classes.debugger} ${debug && classes.debugOn}`}>
+        <Canvas
+          ref={scaledCanvasRef}
+          width="20px" height="20px" id="scaled"
+          className={classes.debugCanvas}
+        />
+        <br/>
+        <div>
+        x: {prev.x} y: {prev.y}
+        </div>
+        <div>
+        offset x: {
+          canvasRef.current && canvasRef.current.parentElement.offsetLeft
+        } offset y: {
+          canvasRef.current && canvasRef.current.parentElement.offsetTop
+        }
+        </div>
       </div>
     </div>
   )
